@@ -6,7 +6,6 @@ import org.telegram.telegrambots.bots.DefaultBotOptions;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
-import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageMedia;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -23,6 +22,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static java.lang.Math.toIntExact;
 
@@ -31,11 +31,11 @@ public class IntroduceMeBot extends TelegramLongPollingBot {
     private static final String TOKEN = "1222190563:AAHHojpOEqJe1782YnGdTXtuPSSbC-BDSxg";
     private static final String BOTNAME = " Introduceme_bot";
     ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
-    private ArrayList<KeyboardRow> keyboard = new ArrayList<>();
-    private KeyboardRow keyboardFirstRow = new KeyboardRow();
-    private KeyboardRow keyboardSecondRow = new KeyboardRow();
+    private final ArrayList<KeyboardRow> keyboard = new ArrayList<>();
+    private final KeyboardRow keyboardFirstRow = new KeyboardRow();
+    private final KeyboardRow keyboardSecondRow = new KeyboardRow();
 
-    private ForceReply forceReply = new ForceReply();
+    private final ForceReply forceReply = new ForceReply();
 
     public IntroduceMeBot(DefaultBotOptions options) {
         super(options);
@@ -58,14 +58,27 @@ public class IntroduceMeBot extends TelegramLongPollingBot {
                         execute(sendMessage.setText(PersonInformation.getProjects()).enableMarkdown(true));
                         break;
                     case "leaveme":
-                        sendMessage.setText("Give me you contacts");
-                        execute(sendMessage);
+                        if (message.getChat().getUserName().equals(PersonInformation.telegram)) {
+                            StringBuilder builder = new StringBuilder("Messages:\n");
+                            for(Map.Entry<String, String> entry : forceReply.usersMessages.entrySet()){
+                                builder.append(entry.getKey()).append("\n");
+                                builder.append(" Message:\n").append(entry.getValue() +"\n\n");
+                            }
+                            execute(sendMessage.setText(builder.toString()));
+                        } else {
+                            sendMessage.setText("Give me you contacts");
+                            execute(sendMessage);
+                        }
                         break;
                     case "contact":
+                        execute(sendMessage.setReplyMarkup(new ReplyKeyboardRemove()).setText("Hello " + message.getContact().getFirstName()));
                         setInlineKeyboard(sendMessage, "Back");
                         sendMessage.setText("Write me");
-                        forceReply.usersWaiting.put(chat_id, "write");
+                        forceReply.usersWaiting.put(chat_id, message.getContact().getPhoneNumber());
                         execute(sendMessage);
+                        break;
+                    case "back":
+                        execute(sendMessage.setText("Ok"));
                         break;
                     default:
                         execute(sendMessage.setText(answer));
@@ -85,8 +98,19 @@ public class IntroduceMeBot extends TelegramLongPollingBot {
                         .setChatId(chat_id)
                         .setMessageId(toIntExact(message_id))
                         .setText(answer);
+
+                AddKeyboard keyboardAdd = () -> {
+                    keyboardFirstRow.add("Me");
+                    keyboardFirstRow.add("Projects");
+                    keyboardSecondRow.add("Leave me massage");
+                };
+                cleanBoardAndAdd(keyboardAdd);
+                SendMessage sendMessage = new SendMessage().setChatId(chat_id);
+                sendMessage.setReplyMarkup(replyKeyboardMarkup);
+                forceReply.usersWaiting.remove(chat_id);
                 try {
                     execute(new_message);
+                    execute(sendMessage.setText("Maybe later"));
                 } catch (TelegramApiException e) {
                     e.printStackTrace();
                 }
@@ -99,13 +123,13 @@ public class IntroduceMeBot extends TelegramLongPollingBot {
         sendPhoto.setReplyMarkup(replyKeyboardMarkup);
         try {
             sendPhoto.setPhoto("me", new FileInputStream(new File("./images/me.jpg")));
-            sendPhoto.setCaption(PersonInformation.getCaption());
+            sendPhoto.setCaption(PersonInformation.getCaption()).setParseMode("Markdown");
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
         AddKeyboard keyboardAdd = () -> {
+            keyboardFirstRow.add("Me");
             keyboardFirstRow.add("Projects");
-            keyboardFirstRow.add("Contacts");
             keyboardSecondRow.add("Leave me massage");
         };
         cleanBoardAndAdd(keyboardAdd);
@@ -117,14 +141,20 @@ public class IntroduceMeBot extends TelegramLongPollingBot {
             return "contact";
         }
         String msg = message.getText();
-        long id =message.getChatId();
+        long id = message.getChatId();
         //User input waiting?
-        if(forceReply.usersWaiting.containsKey(id)){
+        if (forceReply.usersWaiting.containsKey(id)) {
+            String phone = forceReply.usersWaiting.get(id);
             forceReply.usersWaiting.remove(id);
             System.out.println(msg);
+
+            forceReply.usersMessages.put("User: " + message.getChat().getFirstName() + " "
+                    + message.getChat().getLastName() + "\n"
+                    + "Phone: +" + phone, msg);
+
             AddKeyboard keyboardAdd = () -> {
                 keyboardFirstRow.add("Me");
-                keyboardFirstRow.add("Contacts");
+                keyboardFirstRow.add("Projects");
                 keyboardSecondRow.add("Leave me massage");
             };
             cleanBoardAndAdd(keyboardAdd);
@@ -136,21 +166,11 @@ public class IntroduceMeBot extends TelegramLongPollingBot {
         if (msg.equalsIgnoreCase("Projects")) {
             AddKeyboard keyboardAdd = () -> {
                 keyboardFirstRow.add("Me");
-                keyboardFirstRow.add("Contacts");
-                keyboardSecondRow.add("Leave me massage");
-            };
-            cleanBoardAndAdd(keyboardAdd);
-            return "projects";
-        }
-        if (msg.equalsIgnoreCase("Contacts")) {
-
-            AddKeyboard keyboardAdd = () -> {
-                keyboardFirstRow.add("Me");
                 keyboardFirstRow.add("Projects");
                 keyboardSecondRow.add("Leave me massage");
             };
             cleanBoardAndAdd(keyboardAdd);
-            return "contacts";
+            return "projects";
         }
         if (msg.equalsIgnoreCase("Leave me massage")) {
             AddKeyboard keyboardAdd = () -> {
