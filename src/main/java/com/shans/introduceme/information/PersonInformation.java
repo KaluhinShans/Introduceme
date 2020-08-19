@@ -15,7 +15,7 @@ public class PersonInformation {
     public static String linkedInProfile = "kaluhinshans";
     public static String telegram = "Shansoon";
 
-    private static List<Project> projects = GitParser.getProjectsFromGit();
+    private static List<Project> projects = GitParser.getProjectsFromGit(gitHubProfile);
 
     public static String getCaption(){
         StringBuilder result = new StringBuilder();
@@ -32,12 +32,12 @@ public class PersonInformation {
     public static String getProjects(){
         StringBuilder result = new StringBuilder();
         for (Project p: projects) {
+            if (p.isError()){return "No such profile";}
             result.append("Project: ").append("*" + p.getName()+"*").append("\n");
             result.append("GitHub: ").append("[repository](" + p.getGitHubURL() + ")").append("\n");
             result.append("Description:\n").append("  "+p.getDescription()).append("\n\n\n");
         }
+        if (projects.size() == 0){return "Profile haven't public repositories";}
         return result.toString();
     }
-
-
 }

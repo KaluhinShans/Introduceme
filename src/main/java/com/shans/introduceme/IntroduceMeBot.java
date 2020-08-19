@@ -1,9 +1,12 @@
 package com.shans.introduceme;
 
 import com.shans.introduceme.information.ForceReply;
+import com.shans.introduceme.information.GitParser;
 import com.shans.introduceme.information.PersonInformation;
+import com.shans.introduceme.information.Project;
 import org.telegram.telegrambots.bots.DefaultBotOptions;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
@@ -77,6 +80,9 @@ public class IntroduceMeBot extends TelegramLongPollingBot {
                         forceReply.usersWaiting.put(chat_id, message.getContact().getPhoneNumber());
                         execute(sendMessage);
                         break;
+                    case "git":
+                        execute(sendMessage.setText(testGitParser(message.getText())).enableMarkdown(true));
+                        break;
                     case "back":
                         execute(sendMessage.setText("Ok"));
                         break;
@@ -92,7 +98,7 @@ public class IntroduceMeBot extends TelegramLongPollingBot {
             String call_data = update.getCallbackQuery().getData();
             long message_id = update.getCallbackQuery().getMessage().getMessageId();
             long chat_id = update.getCallbackQuery().getMessage().getChatId();
-            if (call_data.equalsIgnoreCase("back")) {
+            if (call_data.equals("Back")) {
                 String answer = "Ok";
                 EditMessageText new_message = new EditMessageText()
                         .setChatId(chat_id)
@@ -114,6 +120,21 @@ public class IntroduceMeBot extends TelegramLongPollingBot {
                 } catch (TelegramApiException e) {
                     e.printStackTrace();
                 }
+            } else if(call_data.equals("Test GitHub parser")){
+                SendMessage sendMessage = new SendMessage().setChatId(chat_id);
+                forceReply.usersWaiting.put(chat_id, "git");
+                try {
+                    execute(sendMessage.setText("Write me your GitHub login"));
+                } catch (TelegramApiException e) {
+                    e.printStackTrace();
+                }
+            }else if(call_data.equals("Download CV")){
+                SendDocument sendDocument = new SendDocument().setChatId(chat_id);
+                try {
+                    execute(sendDocument.setDocument(new File("./files/CV.pdf")));
+                } catch (TelegramApiException e) {
+                    e.printStackTrace();
+                }
             }
         }
     }
@@ -122,8 +143,9 @@ public class IntroduceMeBot extends TelegramLongPollingBot {
         SendPhoto sendPhoto = new SendPhoto().setChatId(message.getChatId());
         sendPhoto.setReplyMarkup(replyKeyboardMarkup);
         try {
-            sendPhoto.setPhoto("me", new FileInputStream(new File("./images/me.jpg")));
+            sendPhoto.setPhoto("me", new FileInputStream(new File("./files/me.jpg")));
             sendPhoto.setCaption(PersonInformation.getCaption()).setParseMode("Markdown");
+            setInlineKeyboard(sendPhoto, "Download CV", "Test GitHub parser");
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
@@ -144,20 +166,25 @@ public class IntroduceMeBot extends TelegramLongPollingBot {
         long id = message.getChatId();
         //User input waiting?
         if (forceReply.usersWaiting.containsKey(id)) {
-            String phone = forceReply.usersWaiting.get(id);
-            forceReply.usersWaiting.remove(id);
-            System.out.println(msg);
+            if(forceReply.usersWaiting.get(id).equals("git")){
+                forceReply.usersWaiting.remove(id);
+                return "git";
+            }else {
+                String phone = forceReply.usersWaiting.get(id);
+                forceReply.usersWaiting.remove(id);
+                System.out.println(msg);
 
-            forceReply.usersMessages.put("User: " + message.getChat().getFirstName() + " "
-                    + message.getChat().getLastName() + "\n"
-                    + "Phone: +" + phone, msg);
+                forceReply.usersMessages.put("User: " + message.getChat().getFirstName() + " "
+                        + message.getChat().getLastName() + "\n"
+                        + "Phone: +" + phone, msg);
 
-            AddKeyboard keyboardAdd = () -> {
-                keyboardFirstRow.add("Me");
-                keyboardFirstRow.add("Projects");
-                keyboardSecondRow.add("Leave me massage");
-            };
-            cleanBoardAndAdd(keyboardAdd);
+                AddKeyboard keyboardAdd = () -> {
+                    keyboardFirstRow.add("Me");
+                    keyboardFirstRow.add("Projects");
+                    keyboardSecondRow.add("Leave me massage");
+                };
+                cleanBoardAndAdd(keyboardAdd);
+            }
             return "Thanks";
         }
         if (msg.equalsIgnoreCase("/start") || msg.equalsIgnoreCase("Me")) {
@@ -204,6 +231,19 @@ public class IntroduceMeBot extends TelegramLongPollingBot {
         message.setReplyMarkup(markupInline);
         return message;
     }
+    private SendPhoto setInlineKeyboard(SendPhoto message, String s, String s1) {
+        InlineKeyboardMarkup markupInline = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rowsInline = new ArrayList<>();
+        List<InlineKeyboardButton> rowInline = new ArrayList<>();
+        List<InlineKeyboardButton> rowInSecondLine = new ArrayList<>();
+        rowInline.add(new InlineKeyboardButton().setText(s).setCallbackData(s));
+        rowInSecondLine.add(new InlineKeyboardButton().setText(s1).setCallbackData(s1));
+        rowsInline.add(rowInline);
+        rowsInline.add(rowInSecondLine);
+        markupInline.setKeyboard(rowsInline);
+        message.setReplyMarkup(markupInline);
+        return message;
+    }
 
     private void cleanBoardAndAdd(AddKeyboard keyboardAdd) {
         replyKeyboardMarkup.setSelective(true);
@@ -218,6 +258,20 @@ public class IntroduceMeBot extends TelegramLongPollingBot {
         keyboard.add(keyboardFirstRow);
         keyboard.add(keyboardSecondRow);
         replyKeyboardMarkup.setKeyboard(keyboard);
+    }
+
+    //testMethod
+    private String testGitParser(String gitProfile){
+        List<Project> projects = GitParser.getProjectsFromGit(gitProfile);
+        StringBuilder result = new StringBuilder();
+        for (Project p: projects) {
+            if (p.isError()){return "No such profile";}
+            result.append("Project: ").append("*" + p.getName()+"*").append("\n");
+            result.append("GitHub: ").append("[repository](" + p.getGitHubURL() + ")").append("\n");
+            result.append("Description:\n").append("  "+p.getDescription()).append("\n\n\n");
+        }
+        if (projects.size() == 0){return "Profile haven't public repositories";}
+        return result.toString();
     }
 
     @Override

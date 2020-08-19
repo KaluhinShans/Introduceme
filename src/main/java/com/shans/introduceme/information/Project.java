@@ -7,4 +7,5 @@ public class Project {
     private String name;
     private String description;
     private String gitHubURL;
+    private boolean Error;
 }

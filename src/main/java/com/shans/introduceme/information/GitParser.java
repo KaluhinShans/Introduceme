@@ -16,17 +16,20 @@ public class GitParser {
 
     }
 
-    public static List<Project> getProjectsFromGit(){
+    public static List<Project> getProjectsFromGit(String profile){
+        List<Project> projects = new ArrayList();
         try {
-            doc = Jsoup.connect("https://github.com/" + PersonInformation.gitHubProfile + "?tab=repositories")
+            doc = Jsoup.connect("https://github.com/" + profile + "?tab=repositories")
                     .userAgent("Chrome/4.0.249.0 Safari/532.5")
                     .referrer("http://www.google.com")
                     .get();
         } catch (IOException exception) {
-            exception.printStackTrace();
+            Project error = new Project();
+            error.setError(true);
+            projects.add(error);
+            return projects;
         }
 
-        List<Project> projects = new ArrayList();
         Elements repoList = doc.select("div#user-repositories-list");
         for (Element e: repoList.select("li")) {
             Project p = new Project();
